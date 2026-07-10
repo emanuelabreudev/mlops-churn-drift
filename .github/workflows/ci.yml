@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar dependências
+        run: uv sync --group dev
+      - name: Lint (ruff)
+        run: uv run ruff check src tests dashboard
+      - name: Testes (pytest, dados sintéticos — sem download)
+        run: uv run pytest
+      - name: Smoke test do pipeline (config reduzida)
+        run: |
+          uv run python - <<'EOF'
+          # Pipeline ponta a ponta em miniatura: preprocess sintético -> treino
+          # -> cenário de drift -> detecção. Garante que os módulos se integram.
+          import json, tempfile, numpy as np, pandas as pd
+          from pathlib import Path
+          from tests.conftest import make_raw
+          from churn_mlops.data.preprocess import build_schema, clean, split
+          from churn_mlops.drift.scenario import INTENSITIES, apply_covariate_drift
+          from churn_mlops.drift.synthesizer import GaussianCopulaSynthesizer
+          from churn_mlops.models.wrapper import ChurnModel
+          from churn_mlops.monitoring.metrics import evaluate_drift
+          from lightgbm import LGBMClassifier
+
+          df = clean(make_raw(800, seed=1))
+          schema = build_schema(df, "Churn")
+          train, val, test = split(df, "Churn", 0.15, 0.15, 42)
+
+          model = ChurnModel(LGBMClassifier(n_estimators=50, verbose=-1, random_state=42), schema)
+          model.estimator.fit(model.prepare(train), train["Churn"])
+          assert 0.5 < float(np.mean(model.predict_proba(test) >= 0)) <= 1.0
+
+          synth = GaussianCopulaSynthesizer(schema, 42).fit(train)
+          calm = synth.sample(300, seed=2)
+          drifted = apply_covariate_drift(synth.sample(300, seed=3), INTENSITIES["severe"], np.random.default_rng(0))
+          cfg = {"psi_moderate": 0.10, "psi_critical": 0.25, "drifted_share_threshold": 0.5, "psi_bins": 10}
+          feats = schema["numeric_features"] + schema["categorical_features"]
+          assert not evaluate_drift(train[feats], calm, schema, cfg).dataset_drift
+          assert evaluate_drift(train[feats], drifted, schema, cfg).dataset_drift
+          print("smoke ok")
+          EOF

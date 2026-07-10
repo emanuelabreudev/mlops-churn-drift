@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Dados e artefatos gerados (reprodutíveis via `make all`)
+data/raw/
+data/processed/
+artifacts/
+mlflow.db
+mlruns/
+mlartifacts/
+
+# Saídas da simulação (regeneráveis; resultados canônicos ficam em docs/resultados.md)
+reports/
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store

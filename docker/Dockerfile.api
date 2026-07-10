@@ -1,0 +1,21 @@
+# Serving da API de churn. Build a partir da raiz do repositório:
+#   docker build -f docker/Dockerfile.api -t churn-api .
+FROM python:3.12-slim
+
+# libgomp1: runtime OpenMP exigido pelo LightGBM
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN pip install --no-cache-dir .
+
+COPY configs ./configs
+COPY artifacts/model ./artifacts/model
+
+ENV MODEL_DIR=/app/artifacts/model
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD curl -fsS http://localhost:8000/health || exit 1
+CMD ["uvicorn", "churn_mlops.serving.app:app", "--host", "0.0.0.0", "--port", "8000"]

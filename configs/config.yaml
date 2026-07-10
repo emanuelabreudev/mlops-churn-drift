@@ -1,0 +1,67 @@
+# Configuração central do pipeline. Todos os scripts leem deste arquivo,
+# de modo que um experimento inteiro é descrito por (código + config + seed).
+
+data:
+  raw_path: data/raw/telco_churn_raw.csv
+  raw_url: https://raw.githubusercontent.com/treselle-systems/customer_churn_analysis/master/WA_Fn-UseC_-Telco-Customer-Churn.csv
+  raw_sha256: 16320c9c1ec72448db59aa0a26a0b95401046bef5d02fd3aeb906448e3055e91
+  processed_dir: data/processed
+  target: Churn
+  id_column: customerID
+  test_size: 0.15
+  val_size: 0.15
+
+seed: 42
+n_seeds: 5 # execuções independentes para média ± desvio-padrão
+
+mlflow:
+  tracking_uri: sqlite:///mlflow.db
+  experiment: churn-training
+  registered_model: churn-classifier
+  production_alias: production
+
+# Hiperparâmetros escolhidos por varredura na validação (nunca no teste):
+# árvores rasas e regularização forte venceram — dataset pequeno (~5k treino)
+# e relações quase lineares; ver "Análise de resultados" no README.
+# Sem class_weight: o modelo fica calibrado (Brier 0.132 vs 0.159 com
+# balanced, mesma AUC/F1) e o desbalanceamento é tratado pelo threshold
+# de decisão, tunado na validação.
+model:
+  lightgbm:
+    n_estimators: 500
+    learning_rate: 0.02
+    num_leaves: 7
+    max_depth: 3
+    min_child_samples: 80
+    subsample: 0.8
+    subsample_freq: 1
+    colsample_bytree: 0.6
+    reg_alpha: 1.0
+    reg_lambda: 10.0
+
+artifacts:
+  model_dir: artifacts/model # export local usado pelo serving (fallback sem MLflow)
+
+drift:
+  # Limiares de PSI seguem a convenção de credit scoring (Siddiqi, 2017) — ver ADR-0004.
+  psi_moderate: 0.10
+  psi_critical: 0.25
+  # Fração de features com PSI >= psi_moderate que caracteriza drift de dataset.
+  drifted_share_threshold: 0.50
+  ks_p_value: 0.01 # numéricas (amostras grandes -> alpha conservador)
+  chi2_p_value: 0.01 # categóricas
+  psi_bins: 10
+
+simulation:
+  n_days: 30
+  batch_size: 250
+  injection_day: 15 # ground truth: 1º dia com dados sob drift
+  scenario: commercial_campaign # ver src/churn_mlops/drift/scenario.py
+  drift_intensity: moderate # light | moderate | severe
+  synthesizer: internal # internal | sdv (requer extra [sdv])
+  retrain:
+    enabled: true
+    cooldown_days: 5 # não retreinar de novo antes disso
+    min_batches: 4 # lotes rotulados do episódio de drift antes de retreinar
+
+reports_dir: reports

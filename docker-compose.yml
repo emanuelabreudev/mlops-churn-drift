@@ -1,0 +1,35 @@
+# Stack local de MLOps: tracking (MLflow), serving (FastAPI) e dashboard (Streamlit).
+# Pré-requisito: `make train && make simulate` para existirem artifacts/ e reports/.
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.22.0
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:///mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts
+      --host 0.0.0.0 --port 5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      - MODEL_DIR=/app/artifacts/model
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./reports:/app/reports:ro
+
+volumes:
+  mlflow-data:
