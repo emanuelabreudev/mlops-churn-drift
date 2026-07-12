@@ -28,20 +28,20 @@ os alertas e registrou a nova versão no MLflow Model Registry.
 
 ```mermaid
 flowchart LR
-    subgraph Treino
-        A[Telco Churn CSV<br/>SHA-256 verificado] --> B[preprocess<br/>70/15/15 estratificado]
-        B --> C[LightGBM + baselines<br/>5 seeds, teste t pareado]
-        C --> D[(MLflow<br/>Tracking + Registry<br/>alias @production)]
-        C --> E[artifacts/model<br/>wrapper: schema + threshold]
+    subgraph treino["Treino"]
+        A["Telco Churn CSV<br/>SHA-256 verificado"] --> B["preprocess<br/>70/15/15 estratificado"]
+        B --> C["LightGBM + baselines<br/>5 seeds, teste t pareado"]
+        C --> D[("MLflow<br/>Tracking + Registry<br/>alias production")]
+        C --> E["artifacts/model<br/>wrapper: schema + threshold"]
     end
-    subgraph Produção simulada — 30 dias
-        F[Copula gaussiana<br/>+ cenário de drift D15] -->|lote diário| G[API FastAPI<br/>/predict /metrics /reload]
+    subgraph producao["Producao simulada - 30 dias"]
+        F["Copula gaussiana<br/>+ cenario de drift D15"] -->|"lote diario"| G["API FastAPI<br/>predict / metrics / reload"]
         E --> G
-        G --> H[Monitor: PSI + KS + χ²<br/>por feature/lote]
-        H -->|CRITICAL + 4 lotes rotulados| I[Retreino automático<br/>nova versão no registry<br/>referência atualizada]
+        G --> H["Monitor: PSI + KS + qui-quadrado<br/>por feature/lote"]
+        H -->|"CRITICAL + 4 lotes rotulados"| I["Retreino automatico<br/>nova versao no registry<br/>referencia atualizada"]
         I --> G
-        H --> J[Evidently AI<br/>relatórios HTML]
-        H --> K[Dashboard Streamlit<br/>PSI, AUC/Brier, alertas]
+        H --> J["Evidently AI<br/>relatorios HTML"]
+        H --> K["Dashboard Streamlit<br/>PSI, AUC/Brier, alertas"]
     end
 ```
 
